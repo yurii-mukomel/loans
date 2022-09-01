@@ -1,6 +1,8 @@
 using API.Hubs;
+using API.Jobs;
 using API.Models;
 using BLL;
+using Coravel;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
@@ -10,7 +12,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Text;
@@ -30,11 +31,7 @@ namespace API
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddSignalR(hubOptions =>
-            {
-                hubOptions.KeepAliveInterval = TimeSpan.FromSeconds(30);
-                //hubOptions.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
-            });
+            services.AddSignalR();
             services.AddControllers()
                 .AddFluentValidation(s =>
                 {
@@ -117,6 +114,10 @@ namespace API
 
             services.AddBusinessLayer(Configuration);
             services.AddSingleton<IDictionary<string, UserConnection>>(opts => new Dictionary<string, UserConnection>());
+
+            services.AddScheduler();
+            services.AddTransient<ChatJob>();
+            services.AddSingleton<ChatHub>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -137,6 +138,19 @@ namespace API
 
             app.UseAuthentication();
             app.UseAuthorization();
+
+            using (var serviceScope = app.ApplicationServices.GetRequiredService<IServiceScopeFactory>().CreateScope())
+            {
+
+                var provider = app.ApplicationServices;
+                provider.UseScheduler(scheduler =>
+                {
+
+                    scheduler.ScheduleWithParams<ChatJob>()
+                 .EveryFiveSeconds();
+
+                });
+            }
 
             //app.UseMiddleware<JwtMiddleware>();
 

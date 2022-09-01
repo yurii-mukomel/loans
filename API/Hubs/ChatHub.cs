@@ -30,6 +30,7 @@ namespace API.Hubs
                 SendConnectedUsers(userConnection.Room);
             }
 
+
             return base.OnDisconnectedAsync(exception);
         }
 
@@ -37,6 +38,7 @@ namespace API.Hubs
         {
             if (_connection.TryGetValue(Context.ConnectionId, out UserConnection userConnection))
             {
+                userConnection.Time = DateTime.Now;
                 await Clients.Group(userConnection.Room)
                     .SendAsync("ReceiveMessage", userConnection.User, message);
             }
@@ -45,7 +47,7 @@ namespace API.Hubs
         public async Task JoinRoom(UserConnection userConnection)
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, userConnection.Room);
-
+            userConnection.Time = DateTime.Now;
             _connection[Context.ConnectionId] = userConnection;
 
             await Clients.Group(userConnection.Room).SendAsync("ReceiveMessage", _botUser,
@@ -60,6 +62,16 @@ namespace API.Hubs
                 .Where(c => c.Room == room)
                 .Select(u => u.User);
             return Clients.Group(room).SendAsync("UsersInRoom", users);
+        }
+
+        public async Task SendDisconnected(string key)
+        {
+            if (_connection.TryGetValue(key, out UserConnection userConnection))
+            {
+                await Clients.Client(key)
+                    .SendAsync("SendDisconnected", userConnection.User, userConnection.Room);
+            }
+            //await Clients.Client(Context.ConnectionId).SendAsync("SendDisconnected", user, room);
         }
     }
 }
